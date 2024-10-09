@@ -3,8 +3,11 @@
 
 start() ->
     Serv3 = spawn(?MODULE, serv3, []),
+    register(serv3, Serv3),
     Serv2 = spawn(?MODULE, serv2, [Serv3]),
+    register(serv2, Serv2),
     Serv1 = spawn(?MODULE, serv1, [Serv2]),
+    register(serv1, Serv1),
     io:format("Servers started~n"),
     main_loop(Serv1).
 
@@ -32,6 +35,16 @@ serv1(Serv2) ->
         halt ->
             Serv2 ! halt,
             io:format("(serv1) Stopping.~n");
+        update ->
+            io:format("(serv1) Updating to new code.~n"),
+            case code:load_file(?MODULE) of
+                {module, ?MODULE} ->
+                    io:format("(serv1) Code updated successfully.~n"),
+                    ?MODULE:serv1(Serv2);
+                {error, Reason} ->
+                    io:format("(serv1) Code update failed: ~p~n", [Reason]),
+                    serv1(Serv2)
+            end;
         {Op, X, Y} when Op == 'add', is_number(X), is_number(Y) ->
             Result = X + Y,
             io:format("(serv1) add(~p, ~p) = ~p~n", [X, Y, Result]),
@@ -66,6 +79,16 @@ serv2(Serv3) ->
         halt ->
             Serv3 ! halt,
             io:format("(serv2) Exiting.~n");
+        update ->
+            io:format("(serv2) Updating to new code.~n"),
+            case code:load_file(?MODULE) of
+                {module, ?MODULE} ->
+                    io:format("(serv2) Code updated successfully.~n"),
+                    ?MODULE:serv2(Serv3);
+                {error, Reason} ->
+                    io:format("(serv2) Code update failed: ~p~n", [Reason]),
+                    serv2(Serv3)
+            end;
         [Head | Tail] when is_integer(Head) ->
             Numbers = [X || X <- [Head | Tail], is_number(X)],
             Sum = lists:sum(Numbers),
@@ -88,6 +111,16 @@ serv3(Count) ->
     receive
         halt ->
             io:format("(serv3) Exiting. Unprocessed messages: ~p~n", [Count]);
+        update ->
+            io:format("(serv3) Updating to new code.~n"),
+            case code:load_file(?MODULE) of
+                {module, ?MODULE} ->
+                    io:format("(serv3) Code updated successfully.~n"),
+                    ?MODULE:serv3(Count);
+                {error, Reason} ->
+                    io:format("(serv3) Code update failed: ~p~n", [Reason]),
+                    serv3(Count)
+            end;
         {error, Msg} ->
             io:format("(serv3) Error: ~p~n", [Msg]),
             serv3(Count);
